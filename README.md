@@ -17,16 +17,6 @@ at render time and is continuous across all six faces.
 | [`demos/FBM+colorpicker.mp4`](demos/FBM+colorpicker.mp4) | The fBM pattern on the cube's surface, with the GUI colour picker changing the base colour underneath it |
 | [`demos/vertex-deformation.mp4`](demos/vertex-deformation.mp4) | The time-driven sine deformation displacing the cube's vertices |
 
-<!--
-  GitHub will not play a repo-relative .mp4 inline: an image tag renders as a
-  broken image and a <video> tag is stripped by the README sanitizer, so the
-  links above open the file instead of embedding a player.
-
-  To get inline players, drag each .mp4 into the comment box of any GitHub issue
-  or pull request. GitHub uploads it and returns a
-  https://github.com/user-attachments/assets/... URL, and that URL does embed.
-  Paste the two URLs on their own lines here and delete the table above.
--->
 
 _TODO: still screenshot_
 
