@@ -1,4 +1,4 @@
-import {vec3, vec4} from 'gl-matrix';
+import {mat4, vec3, vec4} from 'gl-matrix';
 const Stats = require('stats-js');
 import * as DAT from 'dat.gui';
 import Icosphere from './geometry/Icosphere';
@@ -79,9 +79,16 @@ function main() {
     new Shader(gl.FRAGMENT_SHADER, require('./shaders/lambert-frag.glsl')),
   ]);
 
+  // Model matrix, rebuilt every frame so the cube tumbles slowly. The two
+  // rates are not in a simple ratio, so the motion never visibly repeats.
+  const model = mat4.create();
+
   // This function will be called every frame
   function tick(timeMs: number) {
     const time = timeMs / 1000.0;
+    mat4.identity(model);
+    mat4.rotateY(model, model, time * 0.15);
+    mat4.rotateX(model, model, time * 0.1);
     lambert.setTime(time);
     lambert.setWaveFreq(controls.waveFrequency);
     lambert.setWarpAmount(controls.warpAmount);
@@ -108,7 +115,7 @@ function main() {
       controls.colorpicker[2] / 255.0,
       1.0,
     );
-    renderer.render(camera, lambert, color, [
+    renderer.render(camera, lambert, model, color, [
       // icosphere,
       // square,
       cube,
