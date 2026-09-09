@@ -20,6 +20,11 @@ uniform mat4 u_ViewProj;    // The matrix that defines the camera's transformati
                             // but in HW3 you'll have to generate one yourself
 uniform float u_Time;       // Time value updated every frame from TypeScript.
                             // Used to animate the vertex deformation.
+uniform float u_WaveFreq;   // Spatial frequency of the interference field.
+uniform float u_WarpAmount; // Strength of the fBM domain warp.
+uniform float u_DispAmount; // How far the field displaces vertices along the normal.
+
+@import ./wavefield;
 
 in vec4 vs_Pos;             // The array of vertex positions passed to the shader
 
@@ -49,8 +54,19 @@ void main()
                                                             // the model matrix.
 
 
-    vec4 modelposition = u_Model * vs_Pos;   // Temporarily store the transformed vertex positions for use below
-    modelposition.y += sin(u_Time + modelposition.x); // Apply time-based, non-uniform vertex deformation.
+    // Displace the vertex radially from the cube's centre by the same
+    // interference field the fragment shader colours with, so bright fringes
+    // rise and dark ones sink.
+    //   - radial rather than along the face normal: edge vertices are
+    //     duplicated per face with different normals, and only a direction
+    //     that depends on position alone keeps the faces joined
+    //   - evaluated in object space, before u_Model, so it turns with the cube
+    //   - time-varying through u_Time and different at every vertex
+    vec3 p = vs_Pos.xyz;
+    float f = waveSum(p + u_WarpAmount * fbmWarp(p), u_WaveFreq, u_Time).x;
+    vec4 displaced = vs_Pos + vec4(normalize(p) * u_DispAmount * f, 0.0);
+
+    vec4 modelposition = u_Model * displaced;
     fs_LightVec = lightPos - modelposition;  // Compute the direction in which the light source lies
 
     gl_Position = u_ViewProj * modelposition;// gl_Position is a built-in variable of OpenGL which is
