@@ -165,10 +165,24 @@ void main()
         float dist = abs(f) / max(fwidth(f), 1e-5);
         float line = 1.0 - smoothstep(0.0, 1.5, dist);
 
-        float env = sqrt(sum * sum + sumC * sumC) / float(N); // range [0,1]
+        // Envelope: the amplitude at this point with the oscillation removed.
+        //   - sin and cos sample the same wave a quarter period apart, so
+        //     sqrt(sin^2 + cos^2) leaves only the magnitude
+        //   - stays put while the fringes flow through it
+        float env = sqrt(sum * sum + sumC * sumC) / float(N);
 
-        // Remap f to [0, 1] as brightness, then paint the nodal lines in white.
+        // Brightness: full-contrast fringes scaled by the envelope.
+        //   - equals env * (0.5 + 0.5 * f / env) with the division folded in
+        //   - bright patches keep sharp fringes, dead patches darken as a whole
         float field = 0.5 * env + 0.5 * f;
-        vec3 finalColor = mix(u_Color.rgb * field, vec3(1.0), line);
-        out_Col = vec4(finalColor, 1.0);
+
+        // Base colour: fBM (warp.x + 0.5) blends the GUI colour with a deeper
+        // shade. u_Color is sRGB from the picker, so decode to linear first.
+        vec3 colorA = pow(u_Color.rgb, vec3(2.2));
+        vec3 colorB = vec3(0.0, 0.05, 0.25);
+        vec3 base = mix(colorA, colorB, warp.x + 0.5);
+
+        // White nodal lines over the shaded base, then encode linear to sRGB.
+        vec3 finalColor = mix(base * field, vec3(1.0), line);
+        out_Col = vec4(pow(finalColor, vec3(1.0 / 2.2)), 1.0);
 }
