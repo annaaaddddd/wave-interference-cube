@@ -120,6 +120,7 @@ void main()
         //     evaluate the same 3D point and the pattern crosses without a seam
         const int N = 5;
         float sum = 0.0;
+        float sumC = 0.0;
         for (int i = 0; i < N; i++) {
             // Fibonacci sphere direction i:
             //   - y steps evenly from 1 to -1 (latitude)
@@ -134,6 +135,7 @@ void main()
             vec3 d = vec3(r * cos(theta), y, r * sin(theta));
             float phase = u_WaveFreq * dot(fs_Pos.xyz, d) - u_Time;
             sum += sin(phase);
+            sumC += cos(phase);
         }
         // Average so f stays in [-1, 1] for any N. Large where the waves
         // reinforce, near zero where they cancel.
@@ -147,8 +149,10 @@ void main()
         float dist = abs(f) / max(fwidth(f), 1e-5);
         float line = 1.0 - smoothstep(0.0, 1.5, dist);
 
+        float env = sqrt(sum * sum + sumC * sumC) / float(N); // range [0,1]
+
         // Remap f to [0, 1] as brightness, then paint the nodal lines in white.
-        float field = 0.5 + 0.5 * f;
+        float field = 0.5 * env + 0.5 * f;
         vec3 finalColor = mix(u_Color.rgb * field, vec3(1.0), line);
         out_Col = vec4(finalColor, 1.0);
 }
