@@ -13,6 +13,7 @@ precision highp float;
 
 uniform vec4 u_Color; // The color with which to render this instance of geometry.
 uniform float u_WaveFreq;
+uniform float u_Time;
 
 // These are the interpolated values out of the rasterizer, so you can't know
 // their specific values without knowing the vertices that contributed to them
@@ -105,18 +106,16 @@ void main()
                                                             //to simulate ambient lighting. This ensures that faces that are not
                                                             //lit by our point light are not completely black.
 
-        // Compute final shaded color
-
         // Original Lambert-only output:
         // out_Col = vec4(
         //     diffuseColor.rgb * lightIntensity,
         //     diffuseColor.a
         // );
         
-        // Sample 3D FBM using the object's original local-space position.
-        float n = fbm(fs_Pos.xyz * u_WaveFreq);
+        vec3 d = normalize(vec3(1.0, 1.0, 0.0));
+        float phase = u_WaveFreq * dot(fs_Pos.xyz, d) - u_Time;
+        float field = 0.5 + 0.5 * sin(phase); // remap the range to [0,1]
 
-        // Use the FBM value as an intensity multiplier for the GUI-selected color.
-        vec3 finalColor = u_Color.rgb * n; 
+        vec3 finalColor = u_Color.rgb * field; 
         out_Col = vec4(finalColor, 1.0);
 }
