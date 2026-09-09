@@ -12,6 +12,7 @@
 precision highp float;
 
 uniform vec4 u_Color; // The color with which to render this instance of geometry.
+uniform float u_WaveFreq;
 
 // These are the interpolated values out of the rasterizer, so you can't know
 // their specific values without knowing the vertices that contributed to them
@@ -113,7 +114,7 @@ void main()
         // );
         
         // Sample 3D FBM using the object's original local-space position.
-        float n = fbm(fs_Pos.xyz * 2.0);
+        float n = fbm(fs_Pos.xyz * u_WaveFreq);
 
         // Use the FBM value as an intensity multiplier for the GUI-selected color.
         vec3 finalColor = u_Color.rgb * n; 
