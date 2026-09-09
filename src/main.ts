@@ -14,20 +14,22 @@ import ShaderProgram, {Shader} from './rendering/gl/ShaderProgram';
 const controls = {
   tesselations: 5,
   'Load Scene': loadScene, // A function pointer, essentially
-  colorpicker:  [0, 47, 255],
+  colorpicker:  [0, 210, 255],
+  cubeSubdivisions: 16, 
 };
 
 let icosphere: Icosphere;
 let square: Square;
 let cube: Cube;
 let prevTesselations: number = 5;
+let prevCubeSubdivisions: number = 16;
 
 function loadScene() {
   icosphere = new Icosphere(vec3.fromValues(0, 0, 0), 1, controls.tesselations);
   icosphere.create();
   square = new Square(vec3.fromValues(0, 0, 0));
   square.create();
-  cube = new Cube(vec3.fromValues(0, 0, 0));
+  cube = new Cube(vec3.fromValues(0, 0, 0), controls.cubeSubdivisions);
   cube.create();
 }
 
@@ -42,9 +44,12 @@ function main() {
 
   // Add controls to the gui
   const gui = new DAT.GUI();
+  gui.domElement.style.transform = 'scale(1.7)';
+  gui.domElement.style.transformOrigin = 'top right';
   gui.add(controls, 'tesselations', 0, 8).step(1);
   gui.add(controls, 'Load Scene');
   gui.addColor(controls, 'colorpicker');
+  gui.add(controls, 'cubeSubdivisions', 1, 64).step(1);
 
   // get canvas and webgl context
   const canvas = <HTMLCanvasElement> document.getElementById('canvas');
@@ -83,6 +88,12 @@ function main() {
       prevTesselations = controls.tesselations;
       icosphere = new Icosphere(vec3.fromValues(0, 0, 0), 1, prevTesselations);
       icosphere.create();
+    }
+    if(controls.cubeSubdivisions != prevCubeSubdivisions)
+    {
+      prevCubeSubdivisions = controls.cubeSubdivisions;
+      cube = new Cube(vec3.fromValues(0, 0, 0), prevCubeSubdivisions);
+      cube.create();
     }
     
     const color = vec4.fromValues(
