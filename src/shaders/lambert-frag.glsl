@@ -111,11 +111,44 @@ void main()
         //     diffuseColor.rgb * lightIntensity,
         //     diffuseColor.a
         // );
-        
-        vec3 d = normalize(vec3(1.0, 1.0, 0.0));
-        float phase = u_WaveFreq * dot(fs_Pos.xyz, d) - u_Time;
-        float field = 0.5 + 0.5 * sin(phase); // remap the range to [0,1]
 
-        vec3 finalColor = u_Color.rgb * field; 
+        // Superpose N plane waves, each sin(k * dot(p, d) - t):
+        //   - dot(p, d) is how far p lies along the direction d, so the
+        //     wavefronts are planes perpendicular to d
+        //   - k (u_WaveFreq) is how many waves fit per unit length
+        //   - p is the object-space position, so two faces meeting at an edge
+        //     evaluate the same 3D point and the pattern crosses without a seam
+        const int N = 5;
+        float sum = 0.0;
+        for (int i = 0; i < N; i++) {
+            // Fibonacci sphere direction i:
+            //   - y steps evenly from 1 to -1 (latitude)
+            //   - r is the radius of the circle at that height
+            //   - theta advances by the golden angle (about 137.5 deg) each
+            //     step, which never repeats a fraction of a turn, so the N
+            //     directions spread over the sphere instead of lining up
+            float y = 1.0 - 2.0 * (float(i) + 0.5) / float(N);
+            float r = sqrt(1.0 - y * y);
+            float theta = float(i) * 2.39996;
+
+            vec3 d = vec3(r * cos(theta), y, r * sin(theta));
+            float phase = u_WaveFreq * dot(fs_Pos.xyz, d) - u_Time;
+            sum += sin(phase);
+        }
+        // Average so f stays in [-1, 1] for any N. Large where the waves
+        // reinforce, near zero where they cancel.
+        float f = sum / float(N);
+
+        // Nodal lines are the zero set of f:
+        //   - fwidth(f) is how much f changes between neighbouring pixels
+        //   - abs(f) / fwidth(f) is therefore the distance to the nearest
+        //     zero in pixels, so the line width is constant on screen
+        //   - smoothstep fades the edge over 1.5 px to anti-alias
+        float dist = abs(f) / max(fwidth(f), 1e-5);
+        float line = 1.0 - smoothstep(0.0, 1.5, dist);
+
+        // Remap f to [0, 1] as brightness, then paint the nodal lines in white.
+        float field = 0.5 + 0.5 * f;
+        vec3 finalColor = mix(u_Color.rgb * field, vec3(1.0), line);
         out_Col = vec4(finalColor, 1.0);
 }
