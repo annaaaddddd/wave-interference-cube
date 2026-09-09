@@ -17,6 +17,7 @@ const controls = {
   colorpicker:  [0, 210, 255],
   cubeSubdivisions: 16, 
   waveFrequency: 2.0,
+  warpAmount: 0.3,
 };
 
 let icosphere: Icosphere;
@@ -52,6 +53,7 @@ function main() {
   gui.addColor(controls, 'colorpicker');
   gui.add(controls, 'cubeSubdivisions', 1, 64).step(1);
   gui.add(controls, 'waveFrequency', 0.5, 20);
+  gui.add(controls, 'warpAmount', 0, 1);
 
   // get canvas and webgl context
   const canvas = <HTMLCanvasElement> document.getElementById('canvas');
@@ -82,6 +84,7 @@ function main() {
     const time = timeMs / 1000.0;
     lambert.setTime(time);
     lambert.setWaveFreq(controls.waveFrequency);
+    lambert.setWarpAmount(controls.warpAmount);
     camera.update();
     stats.begin();
     gl.viewport(0, 0, window.innerWidth, window.innerHeight);

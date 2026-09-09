@@ -14,6 +14,7 @@ precision highp float;
 uniform vec4 u_Color; // The color with which to render this instance of geometry.
 uniform float u_WaveFreq;
 uniform float u_Time;
+uniform float u_WarpAmount;
 
 // These are the interpolated values out of the rasterizer, so you can't know
 // their specific values without knowing the vertices that contributed to them
@@ -121,6 +122,21 @@ void main()
         const int N = 5;
         float sum = 0.0;
         float sumC = 0.0;
+
+        // Domain warp: displace the sample position with fBM before the waves
+        // read it, like waves crossing a medium of uneven refractive index.
+        //   - three fBM samples at different offsets give three uncorrelated
+        //     components, so the displacement is a vector
+        //   - minus 0.5 centres fBM's [0, 1] output so there is no net shift
+        //   - warping the input bends the fringes and nodal lines but keeps
+        //     them sharp; noise added to the output would only dirty them
+        float warpFreq = 1.5;
+        vec3 p = fs_Pos.xyz;
+        vec3 warp = vec3(fbm(p * warpFreq),
+                        fbm(p * warpFreq + 17.0),
+                        fbm(p * warpFreq + 43.0)) - 0.5;
+        vec3 q = p + u_WarpAmount * warp;
+
         for (int i = 0; i < N; i++) {
             // Fibonacci sphere direction i:
             //   - y steps evenly from 1 to -1 (latitude)
@@ -133,7 +149,7 @@ void main()
             float theta = float(i) * 2.39996;
 
             vec3 d = vec3(r * cos(theta), y, r * sin(theta));
-            float phase = u_WaveFreq * dot(fs_Pos.xyz, d) - u_Time;
+            float phase = u_WaveFreq * dot(q, d) - u_Time;
             sum += sin(phase);
             sumC += cos(phase);
         }

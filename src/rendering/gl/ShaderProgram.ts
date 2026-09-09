@@ -31,6 +31,7 @@ class ShaderProgram {
   unifColor: WebGLUniformLocation;
   unifTime: WebGLUniformLocation;
   unifWaveFreq: WebGLUniformLocation;
+  unifWarpAmount: WebGLUniformLocation;
 
   constructor(shaders: Array<Shader>) {
     this.prog = gl.createProgram();
@@ -52,6 +53,7 @@ class ShaderProgram {
     this.unifColor      = gl.getUniformLocation(this.prog, "u_Color");
     this.unifTime       = gl.getUniformLocation(this.prog, "u_Time");
     this.unifWaveFreq       = gl.getUniformLocation(this.prog, "u_WaveFreq");
+    this.unifWarpAmount = gl.getUniformLocation(this.prog, "u_WarpAmount");
   }
 
   use() {
@@ -100,6 +102,13 @@ class ShaderProgram {
     this.use();
     if (this.unifWaveFreq !== -1) {
       gl.uniform1f(this.unifWaveFreq, freq);
+    }
+  }
+
+  setWarpAmount(warp: number) {
+    this.use();
+    if (this.unifWarpAmount !== -1) {
+      gl.uniform1f(this.unifWarpAmount, warp);
     }
   }
 
