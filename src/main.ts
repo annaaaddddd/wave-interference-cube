@@ -81,8 +81,8 @@ function main() {
     new Shader(gl.FRAGMENT_SHADER, require('./shaders/lambert-frag.glsl')),
   ]);
 
-  // Model matrix, rebuilt every frame so the cube tumbles slowly. The two
-  // rates are not in a simple ratio, so the motion never visibly repeats.
+  // Model matrix, rebuilt every frame so the cube tumbles slowly about two
+  // axes.
   const model = mat4.create();
 
   // This function will be called every frame

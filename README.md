@@ -1,36 +1,234 @@
-# CIS 5660 HW0 — Procedural Noise on Custom Geometry
+# CIS 5660 HW0 — Wave Interference on a Cube
 
-Extends the CIS 5660 WebGL/TypeScript starter code with custom cube geometry,
-an interactive material control, a procedural fragment shader built on 3D
-fractional Brownian motion, and time-based non-uniform vertex deformation.
+A slowly tumbling cube with a wave-interference pattern on its surface. Five
+plane waves are added together, the places where the sum is zero are drawn as
+thin white lines, and the same sum pushes the surface in and out.
 
-The cube's surface colour is not textured or authored. Every pixel evaluates a
-noise function of its own position on the surface, so the pattern is generated
-at render time and is continuous across all six faces.
+There is no texture. Each pixel and each vertex plugs its own 3D position into
+one formula, which is why the pattern has no seams at the edges and turns with
+the cube.
 
-**Live demo:** _TODO: link_
+[Live demo](https://annaaaddddd.github.io/CIS5660-hw0/)
 
-## Demos
+![The tumbling cube](demos/cube_demo.gif)
+
+
+## 1. Assignment requirements
+
+| # | Requirement | Where | How |
+| --- | --- | --- | --- |
+| 3 | A `Cube` class inheriting `Drawable`, with a constructor and `create()`, added to the scene | `src/geometry/Cube.ts` | Six faces, each cut into an n×n grid so the vertex shader has enough points to displace |
+| 4 | A dat.GUI control that alters `u_Color` | `src/main.ts`, `lambert-frag.glsl` | The colour picker sets `u_Color`, the light end of the surface palette |
+| 5 | A fragment shader implementing 3D fBM that modifies the fragment colour | `src/shaders/wavefield.glsl`, `lambert-frag.glsl` | fBM over 3D value noise is used twice: it warps the coordinates the waves are sampled at, and it blends the two palette colours per pixel |
+| 6 | A vertex shader that uses a trigonometric function to modify vertex positions non-uniformly over time, driven by a value passed from TypeScript each tick | `src/shaders/lambert-vert.glsl`, `src/main.ts` | Each vertex is displaced radially by the wave field, a sum of `sin(k·(p·d) − t)`; `u_Time` is uploaded every frame |
+
+The `sin` and `cos` calls live in `waveSum()` in `wavefield.glsl`, which both
+shader stages import, rather than inline in the vertex shader.
+
+
+## 2. Milestone 1
+
+The first version met the four requirements directly. Most of it is still in
+the code, and milestone 2 is built on top of it.
 
 | Recording | What it shows |
 | --- | --- |
-| [`demos/FBM+colorpicker.mp4`](demos/FBM+colorpicker.mp4) | The fBM pattern on the cube's surface, with the GUI colour picker changing the base colour underneath it |
-| [`demos/vertex-deformation.mp4`](demos/vertex-deformation.mp4) | The time-driven sine deformation displacing the cube's vertices |
+| [`demos/FBM+colorpicker.mp4`](demos/FBM+colorpicker.mp4) | fBM as the surface brightness, with the colour picker changing the base colour |
+| [`demos/vertex-deformation.mp4`](demos/vertex-deformation.mp4) | The original sine deformation |
+
+**Cube geometry** (`Cube.ts`)
+
+- each face is a corner plus two edge vectors, `origin + u·s + v·t`, walked by
+  two loops
+- corners are stored once per face, three copies each, so every copy can carry
+  its own flat normal and the cube keeps hard edges
+- `cross(u, v)` points outward, which fixes the normal and the triangle
+  winding at once
+
+**Colour picker** (`main.ts`)
+
+- dat.GUI gives RGB in 0–255; `main.ts` divides by 255 and uploads a `vec4` to
+  `u_Color`
+
+**fBM shader** (`wavefield.glsl`)
+
+- `random3D` hashes a position to a number in [0, 1]
+- `valueNoise3D` samples that hash at the eight lattice corners around a point
+  and blends them with Perlin's fade curve, so there are no creases at the
+  lattice
+- `fbm` adds five octaves, each at double the frequency and half the amplitude
+- originally the fBM value was the pixel brightness. Now it warps the wave
+  field and picks the colour instead (3.5, 3.6)
+
+**Sine deformation** (`lambert-vert.glsl`)
+
+- originally `y += sin(u_Time + x)`, which made the whole cube wobble
+- replaced by displacement along the wave field (3.7), which is still a sum of
+  sines driven by `u_Time` but differs at every vertex
 
 
-_TODO: still screenshot_
+## 3. Milestone 2: the interference pattern
 
-## Controls
+Thanks to the freedom of this assignment I was able to explore different combination of interesting patterns;3
 
-| Control | Description |
-| --- | --- |
-| Color Picker | Base material colour passed to the shader as `u_Color` |
-| Tessellations | Subdivision level of the starter code's icosphere |
-| Load Scene | Rebuilds the scene geometry |
+### 3.1 One plane wave
 
-## Setup
+The building block is a single wave: parallel stripes moving in one
+direction.
 
-### Dependencies
+```
+sin(k · dot(p, d) − t)
+```
+
+- `p` is the pixel's object-space position, `d` a unit direction
+- `dot(p, d)` is how far `p` lies along `d`, so the crests are planes
+  perpendicular to `d`
+- `k` (`u_WaveFreq`) sets how many wavelengths fit in a unit length
+- `t` (`u_Time`) moves the crests along `d`
+
+The wave is a function of the 3D position, not of a 2D texture coordinate.
+Two faces meeting at an edge evaluate the same 3D point, so the stripes
+continue across the edge with no seam.
+
+### 3.2 Five waves added together (`waveSum`)
+
+Adding waves from different directions turns the stripes into a pattern.
+Where the waves have the same sign they add up and the surface is bright;
+where they have opposite signs they cancel and it is dark. This is
+interference.
+
+```
+f = (1/N) · Σ sin(k · dot(p, dᵢ) − t)          N = 5
+```
+
+- the directions `dᵢ` are spread evenly over a sphere: latitude steps from 1 to
+  −1, longitude advances by the golden angle each step
+- dividing by N keeps `f` in [−1, 1]
+
+![One plane wave next to five summed](images/waves-1-vs-5.png)
+
+*The front face at t = 0, rendered from the same formulas with `k = 12` and no warp.*
+
+### 3.3 Nodal lines
+
+The places where `f = 0` are drawn as thin white lines. They travel with the
+waves, and where the waves cancel each other they pinch together. Sand on a
+vibrating plate collects on lines like these (a Chladni figure); there the
+lines stand still because the plate carries a standing wave.
+
+**Motivation for `fwidth`:** drawing the lines as `abs(f) < 0.05` gives a
+width that changes with camera distance and wave frequency, and the lines
+break into dashes when zoomed out. Measuring the distance to the line in
+pixels fixes both:
+
+```
+dist = |f| / fwidth(f)
+line = 1 − smoothstep(0, 1.5, dist)
+```
+
+- `fwidth(f)` is how much `f` changes between neighbouring pixels, so
+  `|f| / fwidth(f)` is the distance to the nearest zero in pixels
+- `smoothstep` fades the edge over 1.5 px, which anti-aliases the line
+
+![Threshold lines next to fwidth lines](images/threshold-vs-fwidth.png)
+
+*Same field, `k = 10`. Left: `abs(f) < 0.05`. Right: the pixel-distance version.*
+
+### 3.4 Envelope
+
+**Motivation:** after 3.3 the surface is white lines on an almost even blue.
+The brightness `0.5 + 0.5·f` barely varies, because five waves with different
+phases mostly cancel in part and `f` stays small. The lines show where the
+waves cancel completely, but nothing yet shows where they are strong. That
+needs the local amplitude at each point, which `f` alone does not give.
+
+```
+env = (1/N) · sqrt( (Σ sin φᵢ)² + (Σ cos φᵢ)² )
+```
+
+- `sin` and `cos` sample the same wave a quarter period apart, so the
+  root-sum-square removes the oscillation and leaves the amplitude
+- brightness becomes `0.5·env + 0.5·f`: full-contrast stripes, scaled by how
+  strong the waves are there
+
+The envelope stays put while the stripes move through it, which is where the
+broad bright and dark regions come from.
+
+![Brightness without and with the envelope](images/envelope-off-vs-on.png)
+
+*Same field. Left: `0.5 + 0.5·f`. Right: `0.5·env + 0.5·f`.*
+
+### 3.5 Domain warp (`fbmWarp`)
+
+**Motivation:** straight plane waves give straight, regular lines that look
+mechanical, and the assignment requires fBM to shape the colour. Running the
+sample position through fBM before the waves read it covers both.
+
+```
+q = p + warpAmount · ( (fbm(1.5p), fbm(1.5p + 17), fbm(1.5p + 43)) − 0.5 )
+```
+
+- three fBM samples at different offsets make one 3D displacement
+- subtracting 0.5 centres fBM's [0, 1] output so nothing drifts sideways
+- the warp is applied to the **input**, so the lines bend but stay sharp;
+  adding noise to the output would only make them grainy
+
+![warpAmount at 0 and 0.3](images/warp-0-vs-0.3.png)
+
+### 3.6 Colour and gamma (`lambert-frag.glsl`)
+
+The first fBM sample also blends the GUI colour with a fixed dark blue, so
+fBM picks the colour directly as well as bending the pattern.
+
+**Motivation for gamma:** the shader works in real light amounts, but the
+display expects sRGB, and shows a linear 0.3 as much darker than 30 % light.
+Without correction the dark regions go black and the envelope's gradients
+vanish. So `u_Color` is decoded to linear (`pow 2.2`) before any maths, and
+the final colour is encoded back (`pow 1/2.2`).
+
+### 3.7 Displacement (`lambert-vert.glsl`)
+
+The vertex shader evaluates the same `f` and moves each vertex in or out by
+`dispAmount · f`. Bright stripes rise, dark ones sink, and the nodal lines sit
+exactly at zero height. The cube was tessellated so that this displacement has
+enough vertices to work with.
+
+**Motivation for radial displacement:** the first attempt moved vertices
+along the face normal, and the cube split open at every edge. Edge vertices
+are stored once per face with different normals, so the same point was pushed
+in two directions. Moving each vertex away from the cube's centre instead
+depends only on position, so the faces stay joined.
+
+- `fs_Pos` still carries the undisplaced position, so the pattern is sampled
+  where it was before the surface moved
+
+![dispAmount at 0 and 0.15](images/disp-0-vs-0.15.gif)
+
+### 3.8 Tumble (`main.ts`)
+
+The model matrix is rebuilt each frame from a slow rotation about Y and a
+slower one about X, so all six faces come around and the pattern visibly
+turns with the surface.
+
+---
+
+## 4. Controls
+
+| Control | Uniform | What it does |
+| --- | --- | --- |
+| `colorpicker` | `u_Color` | Light end of the surface palette |
+| `cubeSubdivisions` | rebuilds `Cube` | Grid resolution per face, 1–64 |
+| `waveFrequency` | `u_WaveFreq` | Spatial frequency `k` of the waves |
+| `warpAmount` | `u_WarpAmount` | Strength of the fBM domain warp, 0 = straight |
+| `dispAmount` | `u_DispAmount` | Radial vertex displacement, 0 = flat |
+| `tesselations` | rebuilds icosphere | Starter-code control, unused by the cube |
+| `Load Scene` | | Rebuilds all geometry |
+
+dat.GUI's number boxes do not commit typed values in this build; drag the
+sliders.
+
+
+## 5. Running it
 
 | Package | Version |
 | --- | --- |
@@ -40,104 +238,43 @@ _TODO: still screenshot_
 | dat.GUI | ^0.7.7 |
 | stats.js | ^1.0.1 |
 
-Rendering targets **WebGL 2** with shaders written in **GLSL ES 3.00**.
+Rendering targets WebGL 2 with shaders in GLSL ES 3.00.
 
 ```bash
 npm install
 ```
 
-### Running locally
-
-Node 17 and later disable the hash algorithm Webpack 5 relies on, so the legacy
-OpenSSL provider has to be enabled before starting the dev server. Without it
-the build fails with `ERR_OSSL_EVP_UNSUPPORTED`.
+Node 17 and later disable the hash algorithm Webpack 5 relies on, so enable
+the legacy OpenSSL provider before starting the dev server:
 
 ```bash
 $env:NODE_OPTIONS="--openssl-legacy-provider"
 npm start
 ```
 
-The development server runs at http://localhost:5660/.
+The dev server runs at http://localhost:5660/. Shader edits need a manual
+reload.
 
-## Implementation
 
-### Custom cube geometry
+## 6. Code map
 
-`Cube` inherits from `Drawable` and builds its buffers in `create()`:
-24 vertices, 24 normals, and 36 indices forming 12 triangles across 6 faces.
+| File | Role |
+| --- | --- |
+| `src/geometry/Cube.ts` | Six faces, each cut into an n×n grid |
+| `src/shaders/wavefield.glsl` | Shared by both stages: value noise, fBM, `fbmWarp`, `waveSum`. Pure functions, no uniforms |
+| `src/shaders/lambert-vert.glsl` | Radial displacement by the field; passes the undisplaced position on |
+| `src/shaders/lambert-frag.glsl` | Nodal lines, envelope brightness, fBM colour blend, gamma |
+| `src/rendering/gl/ShaderProgram.ts` | One typed setter per uniform |
+| `src/main.ts` | dat.GUI controls, per-frame uniforms, tumbling model matrix |
 
-A cube has only 8 distinct corner positions, but each corner is stored three
-times, once per face that meets there. Vertex attributes are interpolated per
-vertex, not per face, so a shared corner would have to carry a single averaged
-normal and the faces would shade as a smooth blob. Duplicating the position lets
-each copy carry its own face normal, which is what gives the cube flat faces and
-hard edges.
+Every slider follows the same path: a `controls` field, a `gui.add`, a
+location lookup and setter in `ShaderProgram`, and one call per tick.
 
-### Interactive colour control
 
-A `dat.GUI` colour picker drives the material colour. dat.GUI reports RGB in
-`[0, 255]`, so `main.ts` divides by 255 before building the `vec4` that is
-uploaded to the `u_Color` uniform.
+## 7. References
 
-```
-dat.GUI → controls.colorpicker → main.ts → u_Color → fragment shader
-```
-
-### Procedural fragment shader
-
-The fragment shader implements fractional Brownian motion over 3D value noise,
-built up in three layers:
-
-- `random3D` hashes a 3D position into a pseudo-random scalar in `[0, 1]`. The
-  dot product collapses the position to one number, `sin` scrambles it, and
-  `fract` keeps it in range.
-- `valueNoise3D` samples that hash only at the eight integer lattice corners
-  surrounding a point and interpolates between them. The interpolation weights
-  use Perlin's quintic fade curve, `6t⁵ - 15t⁴ + 10t³`, whose first and second
-  derivatives both vanish at 0 and 1. A plain `mix` leaves visible creases along
-  the lattice.
-- `fbm` sums five octaves of that noise, doubling frequency and halving
-  amplitude each time, so the result carries detail at several scales at once.
-
-The noise is sampled at the vertex's **object-space** position, which is what
-keeps the pattern fixed to the surface. Sampling world-space position instead
-would leave the noise field stationary in the world and let the surface slide
-through it.
-
-### Animated vertex shader
-
-`main.ts` accumulates elapsed time and uploads it to a `u_Time` uniform every
-frame. The vertex shader offsets each vertex's `y` by a sine of its own `x` and
-of time, so the displacement varies along the surface instead of translating the
-cube as a whole.
-
-## Data flow
-
-**Geometry**
-
-```
-Cube.ts → positions / normals / indices → WebGL buffers
-        → vertex shader → rasterization → fragment shader → screen
-```
-
-**Shader parameters**
-
-```
-main.ts controls → ShaderProgram setters → uniforms → GLSL
-```
-
-`u_Color` and `u_Time` both travel this path: `ShaderProgram` looks up each
-uniform's location once at link time and exposes a typed setter, so `main.ts`
-never touches a raw WebGL call.
-
-**Position, twice**
-
-The vertex shader passes two different positions down to the fragment shader:
-
-| Output | Space | Used for |
-| --- | --- | --- |
-| `gl_Position` | clip | where the deformed geometry is drawn |
-| `fs_Pos` | object | where the procedural pattern is sampled |
-
-Keeping them separate is what lets the geometry animate while the noise stays
-locked to the surface it belongs to.
+- Superposition, interference and nodes: [Wikipedia, Wave interference](https://en.wikipedia.org/wiki/Wave_interference)
+- Chladni figures, with photographs of the plates: [Wikipedia, Ernst Chladni](https://en.wikipedia.org/wiki/Ernst_Chladni)
+- Domain warping, `f(p + h(p))`: [Inigo Quilez, Domain warping](https://iquilezles.org/articles/warp/)
+- Anti-aliasing with `fwidth` and `smoothstep`: [Anti-Aliasing Basics for Procedural Shapes](https://shadergif.com/guides/anti-aliasing-basics/)
+- Gamma correction: [LearnOpenGL, Gamma Correction](https://learnopengl.com/Advanced-Lighting/Gamma-Correction)
