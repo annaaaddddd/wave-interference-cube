@@ -1,4 +1,5 @@
-# CIS 5660 HW0 — Wave Interference on a Cube
+# Wave Interference on a Cube
+> Original codebase forked from CIS 5660 HW0
 
 A slowly tumbling cube with a wave-interference pattern on its surface. Five
 plane waves are added together, the places where the sum is zero are drawn as
