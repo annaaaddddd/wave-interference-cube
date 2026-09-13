@@ -9,7 +9,7 @@ There is no texture. Each pixel and each vertex plugs its own 3D position into
 one formula, which is why the pattern has no seams at the edges and turns with
 the cube.
 
-[Live demo](https://annaaaddddd.github.io/CIS5660-hw0/)
+[Live demo](https://annaaaddddd.github.io/wave-interference-cube/)
 
 ![The tumbling cube](demos/cube_demo.gif)
 
